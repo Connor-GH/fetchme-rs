@@ -3,9 +3,12 @@ name = "fetchme-rs"
 version = "0.1.0"
 edition = "2024"
 
+[profile.release]
+codegen-units = 1
+lto = "thin"
+
 [dependencies]
 byte-unit = { version = "5.2.0", default-features = false, features = ["byte"] }
-nom = "8.0.0"
 pci-info = { version = "0.3.4"}
 procfs = { version = "0.18.0", default-features = false }
 xcb = {version = "1.7.0", features = ["randr"]}
@@ -20,7 +23,6 @@ features = [
   "hostname",
   "mount",
   "process",
-  "pthread",
   "term",
   "time",
   "user",
@@ -33,25 +35,20 @@ default-features = false
 features = ["std", "libc"]
 
 [lints.rust]
-# unused_crate_dependencies = "warn"
+unused_crate_dependencies = "warn"
 
 [lints.clippy]
 # Cargo
 wildcard_dependencies = "warn"
-# cargo_common_metadata = "warn"
 
 # Restriction
 allow_attributes = "warn"
 clone_on_ref_ptr = "warn"
-create_dir = "warn"
-dbg_macro = "warn"
 exit = "warn"
 undocumented_unsafe_blocks = "warn"
 unused_result_ok = "warn"
 unused_trait_names = "warn"
 unwrap_used = "warn"
-# print_stderr = "warn"
-# print_stdout = "warn"
 
 # Nursery
 nursery = { level = "warn", priority = -1 }
@@ -67,7 +64,6 @@ default_trait_access = "allow"
 missing_errors_doc = "allow"
 module_name_repetitions = "allow"
 must_use_candidate = "allow"
-struct_excessive_bools = "allow"
 map_unwrap_or = "allow"
 unnecessary_debug_formatting = "allow"
 missing_panics_doc = "allow"

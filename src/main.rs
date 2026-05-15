@@ -22,7 +22,6 @@ use xcb::x::{ATOM_WINDOW, Window};
 use xcb::{Connection, x};
 
 use core::error::Error;
-use core::fmt::Display;
 use core::mem::MaybeUninit;
 use std::cell::LazyCell;
 use std::ffi::OsStr;
@@ -66,18 +65,19 @@ const COLOR: LazyCell<&str> = LazyCell::new(|| match DISTRO_INFO.0.as_str() {
     _ => RED,
 });
 
-struct ColoredInfo<T: Display>(T);
-
-impl<T: Display> const From<T> for ColoredInfo<T> {
-    fn from(value: T) -> Self {
-        Self(value)
+macro_rules! color_print {
+    ($($tok:tt)*) => {
+        print!("{}", *COLOR);
+        print!($($tok)*);
+        print!("{}",CLEAR);
     }
 }
 
-impl<T: Display> Display for ColoredInfo<T> {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.write_str(&format!("{}{}{}", *COLOR, self.0, CLEAR))
-    }
+macro_rules! color_println {
+    (color=[$($color:tt)*], $($tok:tt)*) => {
+        color_print!($($color)*);
+        println!($($tok)*);
+    };
 }
 
 #[expect(clippy::borrow_interior_mutable_const)]
@@ -129,9 +129,9 @@ fn displays() -> Result<(), Box<dyn Error>> {
         let scrinfo = c.send_request(&GetScreenInfo { window: x.root() });
         let reply = c.wait_for_reply(scrinfo)?;
 
-        println!(
-            "{} {}x{} @ {}Hz",
-            ColoredInfo::from(format!("Screen {}:", n + 1).as_str()),
+        color_println!(
+            color = ["Screen {}:", n + 1],
+            " {}x{} @ {}Hz",
             x.width_in_pixels(),
             x.height_in_pixels(),
             reply.rate()
@@ -158,7 +158,7 @@ fn package_count() {
             pkg_count = globbuf.gl_pathc;
         }
     }
-    println!("{} {}", ColoredInfo::from("Packages:"), pkg_count);
+    color_println!(color = ["Packages:"], " {}", pkg_count);
 }
 
 fn gpu() -> Result<(), Box<dyn Error>> {
@@ -208,14 +208,10 @@ fn gpu() -> Result<(), Box<dyn Error>> {
         }
     }
     if gpu_names.len() == 1 {
-        println!("{} {}", ColoredInfo::from("GPU:"), gpu_names[0]);
+        color_println!(color = ["GPU:"], " {}", gpu_names[0]);
     } else {
         for (num, gpu) in gpu_names.iter().enumerate() {
-            println!(
-                "{} {}",
-                ColoredInfo::from(format!("GPU {}:", num + 1).as_str()),
-                gpu
-            );
+            color_println!(color = ["GPU {}:", num + 1], " {}", gpu);
         }
     }
     Ok(())
@@ -223,12 +219,8 @@ fn gpu() -> Result<(), Box<dyn Error>> {
 
 fn os_name() {
     let uname = &UNAME;
-    println!(
-        "{} {} {}",
-        ColoredInfo::from("OS:"),
-        DISTRO_INFO.1,
-        uname.machine().to_str().unwrap()
-    );
+    let uname_os = uname.machine().to_str().unwrap();
+    color_println!(color = ["OS:"], " {} {}", DISTRO_INFO.1, uname_os);
 }
 fn username_hostname() {
     let username = User::from_uid(Uid::effective())
@@ -238,20 +230,16 @@ fn username_hostname() {
     let uname = &*UNAME;
     let hostname = uname.nodename().to_str().unwrap();
     let len = username.len() + 1 + hostname.len();
-    println!(
-        "{}@{}",
-        ColoredInfo::from(username),
-        ColoredInfo::from(hostname)
-    );
-    println!("{}", ColoredInfo::from("~".repeat(len)));
+    color_print!("{}", username);
+    print!("@");
+    color_println!(color = ["{}", hostname],);
+    color_println!(color = ["{}", "~".repeat(len)],);
 }
 
 fn kernel() {
-    println!(
-        "{} {}",
-        ColoredInfo::from("Kernel:"),
-        UNAME.release().to_str().unwrap()
-    );
+    let uname = UNAME;
+    let uname_kernel = uname.release().to_str().unwrap();
+    color_println!(color = ["Kernel:"], " {}", uname_kernel);
 }
 
 fn shell() {
@@ -260,25 +248,21 @@ fn shell() {
         .file_name()
         .unwrap_or_else(|| OsStr::new("sh"));
 
-    println!(
-        "{} {}",
-        ColoredInfo::from("Shell:"),
-        shell_path.to_str().unwrap()
-    );
+    color_println!(color = ["Shell:"], " {}", shell_path.to_str().unwrap());
 }
 
 fn terminal() {
     let term = std::env::var("TERMINAL")
         .unwrap_or_else(|_| std::env::var("TERM").expect("Failed to get terminal info"));
 
-    println!("{} {}", ColoredInfo::from("Terminal:"), term);
+    color_println!(color = ["Terminal:"], " {}", term);
 }
 
 fn uptime() -> Result<(), Box<dyn Error>> {
     let uptime = SYSINFO.uptime();
     let uptime = chrono::Duration::from_std(uptime)?;
 
-    print!("{} ", ColoredInfo::from("Uptime:"));
+    color_print!("Uptime: ");
     if uptime.num_days() > 0 {
         print!("{} days, ", uptime.num_days());
     }
@@ -298,12 +282,8 @@ fn cpu() -> Result<(), Box<dyn Error>> {
         cpu_name = cpu_name.trim_end_matches(end);
     }
     cpu_name = cpu_name.trim_end();
-    print!(
-        "{} {} ({})",
-        ColoredInfo::from("CPU:"),
-        cpu_name,
-        cpuinfo.num_cores()
-    );
+    color_print!("CPU:");
+    print!(" {} ({})", cpu_name, cpuinfo.num_cores());
     if let Some(s) = cpuinfo.get_field(0, "cpu MHz") {
         print!(" @ {s}MHz");
     }
@@ -323,9 +303,9 @@ fn memory() -> Result<(), Box<dyn Error>> {
     let percent = used as f64 / total as f64 * 100.0;
     let used = byte_unit::Byte::from_u64(used).get_appropriate_unit(UnitType::Decimal);
     let total = byte_unit::Byte::from_u64(total).get_appropriate_unit(UnitType::Decimal);
-    println!(
-        "{} {:#.1} / {:#.1} ({:.1}%)",
-        ColoredInfo::from("Memory:"),
+    color_println!(
+        color = ["Memory:"],
+        " {:#.1} / {:#.1} ({:.1}%)",
         used,
         total,
         percent
@@ -345,10 +325,7 @@ fn disk() -> Result<(), Box<dyn Error>> {
     let total = byte_unit::Byte::from_u64(total).get_appropriate_unit(UnitType::Decimal);
     let used = byte_unit::Byte::from_u64(used).get_appropriate_unit(UnitType::Decimal);
 
-    println!(
-        "{} {used:.1} / {total:.1} ({percent:.1}%)",
-        ColoredInfo::from("Disk:")
-    );
+    color_println!(color = ["Disk:"], " {used:.1} / {total:.1} ({percent:.1}%)",);
     Ok(())
 }
 
@@ -389,7 +366,7 @@ fn window_manager() -> Result<(), Box<dyn Error>> {
     });
     let reply = c.wait_for_reply(cookie)?;
     let wm_name = str::from_utf8(reply.value::<u8>())?;
-    println!("{} {}", ColoredInfo::from("WM:"), wm_name);
+    color_println!(color = ["WM:"], " {}", wm_name);
 
     Ok(())
 }
