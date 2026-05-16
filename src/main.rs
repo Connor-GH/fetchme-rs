@@ -82,7 +82,7 @@ macro_rules! color_println {
 
 #[expect(clippy::borrow_interior_mutable_const)]
 const DISTRO_INFO: LazyCell<(String, String)> = LazyCell::new(|| {
-    let file = File::open("/etc/os-release")
+    let file = &File::open("/etc/os-release")
         .or_else(|_| File::open("/usr/lib/os-release"))
         .expect("failed to open os-release");
 
@@ -118,7 +118,7 @@ const DISTRO_INFO: LazyCell<(String, String)> = LazyCell::new(|| {
 });
 
 fn displays() -> Result<(), Box<dyn Error>> {
-    let (c, _) = Connection::connect(None)?;
+    let (c, _) = &Connection::connect(None)?;
     for (n, x) in c.get_setup().roots().enumerate() {
         let ver = c.send_request(&QueryVersion {
             major_version: 1,
@@ -223,11 +223,11 @@ fn os_name() {
     color_println!(color = ["OS:"], " {} {}", DISTRO_INFO.1, uname_os);
 }
 fn username_hostname() {
-    let username = User::from_uid(Uid::effective())
+    let username = &User::from_uid(Uid::effective())
         .expect("Getpwuid_r failed")
         .expect("Getting username failed")
         .name;
-    let uname = &*UNAME;
+    let uname = &UNAME;
     let hostname = uname.nodename().to_str().unwrap();
     let len = username.len() + 1 + hostname.len();
     color_print!("{}", username);
@@ -237,7 +237,7 @@ fn username_hostname() {
 }
 
 fn kernel() {
-    let uname = UNAME;
+    let uname = &UNAME;
     let uname_kernel = uname.release().to_str().unwrap();
     color_println!(color = ["Kernel:"], " {}", uname_kernel);
 }
@@ -275,8 +275,8 @@ fn uptime() -> Result<(), Box<dyn Error>> {
 
 #[cfg(target_os = "linux")]
 fn cpu() -> Result<(), Box<dyn Error>> {
-    static TRIM_END_WORD_LIST: [&str; 2] = ["with Radeon Graphics", "Processor"];
-    let cpuinfo = CpuInfo::current()?;
+    const TRIM_END_WORD_LIST: [&str; 2] = ["with Radeon Graphics", "Processor"];
+    let cpuinfo = &CpuInfo::current()?;
     let mut cpu_name = cpuinfo.model_name(0).ok_or("Failed to get cpu name")?;
     for end in TRIM_END_WORD_LIST {
         cpu_name = cpu_name.trim_end_matches(end);
@@ -293,7 +293,7 @@ fn cpu() -> Result<(), Box<dyn Error>> {
 
 #[cfg(target_os = "linux")]
 fn memory() -> Result<(), Box<dyn Error>> {
-    let meminfo = Meminfo::current()?;
+    let meminfo = &Meminfo::current()?;
     let total = meminfo.mem_total;
     let used = total
         - meminfo.mem_free
@@ -314,7 +314,7 @@ fn memory() -> Result<(), Box<dyn Error>> {
 }
 
 fn disk() -> Result<(), Box<dyn Error>> {
-    let statvfs = statvfs("/")?;
+    let statvfs = &statvfs("/")?;
     let frsize = statvfs.fragment_size();
     let blocks = statvfs.blocks();
     let freeblks = statvfs.blocks_free();
@@ -330,7 +330,7 @@ fn disk() -> Result<(), Box<dyn Error>> {
 }
 
 fn window_manager() -> Result<(), Box<dyn Error>> {
-    let (c, _) = Connection::connect(None)?;
+    let (c, _) = &Connection::connect(None)?;
     let root_window = c
         .get_setup()
         .roots()
@@ -343,7 +343,7 @@ fn window_manager() -> Result<(), Box<dyn Error>> {
             pub net_wm_name => b"_NET_WM_NAME",
         }
     }
-    let atoms = Atoms::intern_all(&c)?;
+    let atoms = &Atoms::intern_all(&c)?;
     let cookie = c.send_request(&x::GetProperty {
         delete: false,
         window: root_window,
